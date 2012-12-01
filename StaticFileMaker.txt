@@ -13,9 +13,14 @@
  * @internal    @properties &rebuild_password=静的ファイル生成用パスワード;text; &defaultAction=既定の動作;list;生成する,生成しない;生成する
  */
 
+$eventid=999; //999 = Custom action
+$logInfo=1; //情報
+$logWarn=2; //警告
+$logErr=3;  //エラー
+
 //フレンドリーURLが無効の時は何もしない
 if( !($this->config['friendly_urls'] == 1 && $this->config['friendly_alias_urls'] == 1) ){
-	$this->logEvent(1,1,'フレンドリーURLを有効にしてください。','[plugin]StaticFileMaker');
+	$this->logEvent($eventid,$logWarn,'フレンドリーURLを有効にしてください。','[plugin]StaticFileMaker');
 	return false;
 }
 
@@ -137,7 +142,7 @@ case 'OnDocFormSave': //ファイル生成
 	$rs=$this->db->select('id,published,deleted,privateweb',$tbl_site_content,"id={$id}");
 	$row = $this->db->getRow($rs);
 	if( $row === false ){
-		$this->logEvent(1,3,'リソースが見つかりません:'.$id,'[plugin]StaticFileMaker');
+		$this->logEvent($eventid,$logErr,'リソースが見つかりません:'.$id,'[plugin]StaticFileMaker');
 	}
 
 	//削除はrebuild_flagに関係なく実施する
@@ -149,7 +154,7 @@ case 'OnDocFormSave': //ファイル生成
 		//削除
 		if( is_file(MODX_BASE_PATH.$url) ){
 			if(! unlink(MODX_BASE_PATH.$url) ){
-				$this->logEvent(1,3,'ファイルの削除に失敗しました:'.$url,'[plugin]StaticFileMaker');
+				$this->logEvent($eventid,$logErr,'ファイルの削除に失敗しました:'.$url,'[plugin]StaticFileMaker');
 			}
 		}
 	}elseif( $_REQUEST['rebuild_flag'] == '1' && $makeEnable ){
@@ -163,12 +168,12 @@ case 'OnDocFormSave': //ファイル生成
 			$path .= $val.'/';
 			if(! is_dir($path) ){
 				if(! mkdir($path) ){
-					$this->logEvent(1,3,'ディレクトリの作成に失敗しました:'.$path,'[plugin]StaticFileMaker');
+					$this->logEvent($eventid,$logErr,'ディレクトリの作成に失敗しました:'.$path,'[plugin]StaticFileMaker');
 				}
 			}
 		}
 		if( @file_put_contents($path.$filename,$content) === false){
-			$this->logEvent(1,3,'ファイルの作成に失敗しました:'.$path.$filename,'[plugin]StaticFileMaker');
+			$this->logEvent($eventid,$logErr,'ファイルの作成に失敗しました:'.$path.$filename,'[plugin]StaticFileMaker');
 		}		
 	}
   break;
