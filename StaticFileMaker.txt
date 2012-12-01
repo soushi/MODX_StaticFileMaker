@@ -69,10 +69,10 @@ $makeJudge=function($id,$defaultMake=true){
 switch ($this->event->name) {
 case 'OnDocFormRender': //ボタン追加
 
-	$edit_flag=0;
+	$editFlag=0;
 	if( !empty($id) ){
 		$url=$this->makeUrl($id);
-		$edit_flag=1;
+		$editFlag=1;
 
 		$makeEnable=0;
 		if( $makeJudge($id,$defaultMake) ){
@@ -102,7 +102,7 @@ case 'OnDocFormRender': //ボタン追加
   new_ul.insertBefore( newLi,new_ul.firstChild );
 
   //ボタン生成 - プレビュー
-	if( 1 == $edit_flag && 1 == $makeEnable ){
+	if( 1 == $editFlag && 1 == $makeEnable ){
     var newA = document.createElement("a");
     var newText = document.createTextNode("ファイルプレビュー");
     var newLi = document.createElement("li");
@@ -179,9 +179,9 @@ case 'OnDocFormSave': //ファイル生成
   break;
 
 case 'OnManagerLogin': //プレビューが確認できるようにcookieの生成
-	$rebuild_code=md5(rand(1000,9999).time().getmypid());	//適当な文字列を生成
-	setcookie('__rebuild',$rebuild_code,0,'/');
-	$_SESSION['__rebuild'] = $rebuild_code;
+	$rebuildCode=md5(rand(1000,9999).time().getmypid());	//適当な文字列を生成
+	setcookie('__rebuild',$rebuildCode,0,'/');
+	$_SESSION['__rebuild'] = $rebuildCode;
 	break;
 
 case 'OnWebPageInit': //cookieとセッション値が合わない場合、隠しパスワードに合致しない場合は404へ
@@ -204,7 +204,7 @@ case 'OnManagerPageInit': //全リソースファイル生成
 	if( $action == 998 && $_GET['sys']=='rebuild' ){
 
 		//共通フォーム
-		$output_form = <<< HTML_END
+		$outputForm = <<< HTML_END
 <div style="text-align:center;margin-top:50px;">
   <form method="GET" action="/manager/index.php">
     <input type="hidden" id="a" name="a" value="998" />
@@ -223,8 +223,8 @@ HTML_END;
 		$mode=isset($_GET['mode'])?$_GET['mode']:'';
 		switch ($mode) {
 		case 'rebuild':
-			$list_mk='';
-			$list_rm='';
+			$listMk='';
+			$listRm='';
 			$tbl_site_content = $this->getFullTableName('site_content');
 			$rs=$this->db->select('id,published,deleted,privateweb',$tbl_site_content);
 			while($row = $this->db->getRow($rs)){
@@ -241,7 +241,7 @@ HTML_END;
 						if(! unlink(MODX_BASE_PATH.$url) ){
 							$err='※削除失敗';
 						}
-						$list_rm.=$url.$err.'<br >';
+						$listRm.=$url.$err.'<br >';
 					}
 				}else{
 					//生成(ここの処理は単独の生成ロジックと似てるのでそのうち無名関数くらいにした方がいいかも)
@@ -262,24 +262,24 @@ HTML_END;
 					if( @file_put_contents($path.$filename,$content) === false){
 						$err='※ファイル生成失敗';
 					}
-					$list_mk.=$url.$err.'<br >';
+					$listMk.=$url.$err.'<br >';
 				}
 			}
-			if( $list_mk == '' ){
-				$list_mk = '生成ファイルなし';
+			if( $listMk == '' ){
+				$listMk = '生成ファイルなし';
 			}
-			if( $list_rm == '' ){
-				$list_rm = '削除ファイルなし';
+			if( $listRm == '' ){
+				$listRm = '削除ファイルなし';
 			}
 
 			$output = <<< HTML_END
-{$output_form}
+{$outputForm}
 <div style="text-align:left;margin-top:20px;margin-left:50px;">
 	<h2>ファイル生成完了しました！</h2>
 	<h3>生成ファイル</h3>
-	{$list_mk}
+	{$listMk}
 	<h3>削除ファイル</h3>
-	{$list_rm}
+	{$listRm}
 </div>
 HTML_END;
 
@@ -288,7 +288,7 @@ HTML_END;
 			break;
 
 		default:
-			$this->event->output($output_form);
+			$this->event->output($outputForm);
 			break;
 		}
 		
