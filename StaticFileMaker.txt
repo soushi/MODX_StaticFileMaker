@@ -10,14 +10,56 @@
  * @author      soushi
  * @internal    @events        OnDocFormRender,OnDocFormSave,OnManagerLogin,OnWebPageInit,OnManagerPageInit
  * @internal    @modx_category StaticFileMaker
- * @internal    @properties &rebuild_password=静的ファイル生成用パスワード;text;
+ * @internal    @properties &rebuild_password=静的ファイル生成用パスワード;text; &defaultAction=既定の動作;list;生成する,生成しない;生成する
  */
 
 //フレンドリーURLが無効の時は何もしない
 if( !($this->config['friendly_urls'] == 1 && $this->config['friendly_alias_urls'] == 1) ){
-	$this->logEvent(1,1,'フレンドリーURLを有効にしてください。','[plugin]静的ファイル生成');
+	$this->logEvent(1,1,'フレンドリーURLを有効にしてください。','[plugin]StaticFileMaker');
 	return false;
 }
+
+//デフォルトの生成ルールを決定
+if( $defaultAction == '生成する' ){
+	$defaultMake = true;
+}else{
+	$defaultMake = false;
+}
+
+//生成対象/対象外の判定関数
+$makeJudge=function($id,$defaultMake=true){
+	global $modx; //クロージャの中で$thisが利用できるのは php5.4 以降
+
+	if( $modx->getPageInfo($id,1,'id') == false ){ //非公開リソースは強制的に生成対象外
+		return false;
+	}
+
+	$rslt = $defaultMake;
+
+	$sfmOption=$modx->getTemplateVarOutput(array('StaticFileMakerOption'),$id);
+	$sfmOption=$sfmOption['StaticFileMakerOption'];
+
+	if( preg_match('/exceptSelf/',$sfmOption) ){ //自分自身の設定
+		$rslt = !$rslt;
+	}elseif(! preg_match('/makeForce/',$sfmOption) ){ //親リソースからの継承
+		$pid=$modx->getParent($id,1,'id');
+		if( $pid === false ){ $pid = $modx->getParent($id,0,'id');}
+		
+		while( $pid !== false ){ //親リソースの設定を確認
+			$pid=$pid['id'];
+			$sfmOptionParent=$modx->getTemplateVarOutput(array('StaticFileMakerOption'),$pid);
+			$sfmOptionParent=$sfmOptionParent['StaticFileMakerOption'];
+			if( preg_match('/exceptChildren/',$sfmOptionParent) ){
+				$rslt = !$rslt; //反転
+				$pid=0;
+			}
+			$tmp_pid=$modx->getParent($pid,1,'id');
+			if( $tmp_pid === false ){ $tmp_pid = $modx->getParent($pid,0,'id');}
+			$pid=$tmp_pid;
+		}
+	}
+	return $rslt;
+};
 
 switch ($this->event->name) {
 case 'OnDocFormRender': //ボタン追加
@@ -26,7 +68,13 @@ case 'OnDocFormRender': //ボタン追加
 	if( !empty($id) ){
 		$url=$this->makeUrl($id);
 		$edit_flag=1;
+
+		$makeEnable=0;
+		if( $makeJudge($id,$defaultMake) ){
+			$makeEnable=1;
+		}
 	}
+
 	$output = <<< HTML_END
 <input type="hidden" id="rebuild_flag" name="rebuild_flag" value="0" />
 <script type="text/javascript">
@@ -36,6 +84,7 @@ case 'OnDocFormRender': //ボタン追加
   // リストエレメント
   var new_ul = document.createElement("ul");
   new_ul.setAttribute("class", "actionButtons");
+  new_ul.setAttribute("style", "margin-top:8px;");
 
   //ボタン生成 - 再構築
   var newA = document.createElement("a");
@@ -48,7 +97,7 @@ case 'OnDocFormRender': //ボタン追加
   new_ul.insertBefore( newLi,new_ul.firstChild );
 
   //ボタン生成 - プレビュー
-	if( 1 == $edit_flag ){
+	if( 1 == $edit_flag && 1 == $makeEnable ){
     var newA = document.createElement("a");
     var newText = document.createTextNode("ファイルプレビュー");
     var newLi = document.createElement("li");
@@ -60,14 +109,16 @@ case 'OnDocFormRender': //ボタン追加
   }
 
   //ボタン生成 - 保存+ファイル生成
-  var newA = document.createElement("a");
-  var newText = document.createTextNode("保存+ファイル生成/削除");
-  var newLi = document.createElement("li");
-  newA.appendChild( newText );
-  newA.setAttribute("href", "#");
-  newA.setAttribute("onclick", "if(window.confirm('保存後、静的ファイルを生成/削除を行います。')){document.getElementById('rebuild_flag').value='1'; documentDirty=false; document.mutate.save.click();}");
-  newLi.appendChild ( newA );
-  new_ul.insertBefore( newLi,new_ul.firstChild );
+	if( 1 == $makeEnable ){
+		var newA = document.createElement("a");
+		var newText = document.createTextNode("保存+ファイル生成");
+		var newLi = document.createElement("li");
+		newA.appendChild( newText );
+		newA.setAttribute("href", "#");
+		newA.setAttribute("onclick", "if(window.confirm('保存後、静的ファイルを生成を行います(非公開にチェックをいれた場合は削除されます)。')){document.getElementById('rebuild_flag').value='1'; documentDirty=false; document.mutate.save.click();}");
+		newLi.appendChild ( newA );
+		new_ul.insertBefore( newLi,new_ul.firstChild );
+	}
 
   //差し込み
   el_div.appendChild( new_ul );
@@ -78,45 +129,47 @@ HTML_END;
   break;
 
 case 'OnDocFormSave': //ファイル生成
-	if( $_REQUEST['rebuild_flag'] == '1' ){		
+	
+	$url=$this->makeUrl($id);
+	$makeEnable=$makeJudge($id,$defaultMake);
 
-		$url=$this->makeUrl($id);
+	$tbl_site_content = $this->getFullTableName('site_content');
+	$rs=$this->db->select('id,published,deleted,privateweb',$tbl_site_content,"id={$id}");
+	$row = $this->db->getRow($rs);
+	if( $row === false ){
+		$this->logEvent(1,3,'リソースが見つかりません:'.$id,'[plugin]StaticFileMaker');
+	}
 
-		$tbl_site_content = $this->getFullTableName('site_content');
-		$rs=$this->db->select('id,published,deleted,privateweb',$tbl_site_content,"id={$id}");
-		$row = $this->db->getRow($rs);
-		if( $row === false ){
-			$this->logEvent(1,3,'リソースが見つかりません:'.$id,'[plugin]静的ファイル生成');
+	//削除はrebuild_flagに関係なく実施する
+	if( $row['published']  == 0 ||
+			$row['deleted']    == 1 || //削除の判定は不要だけど一応
+			$row['privateweb'] == 1 ||
+			$makeEnable == false
+			){
+		//削除
+		if( is_file(MODX_BASE_PATH.$url) ){
+			if(! unlink(MODX_BASE_PATH.$url) ){
+				$this->logEvent(1,3,'ファイルの削除に失敗しました:'.$url,'[plugin]StaticFileMaker');
+			}
 		}
-
-		if( $row['published']  == 0 ||
-				$row['deleted']    == 1 || //削除の判定は不要だけど一応
-				$row['privateweb'] == 1 ){
-			//削除
-			if( is_file(MODX_BASE_PATH.$url) ){
-				if(! unlink(MODX_BASE_PATH.$url) ){
-					$this->logEvent(1,3,'ファイルの削除に失敗しました:'.$url,'[plugin]静的ファイル生成');
+	}elseif( $_REQUEST['rebuild_flag'] == '1' && $makeEnable ){
+		//生成
+		$content = @file_get_contents(MODX_SITE_URL . "index.php?id={$id}&__rebuild={$rebuild_password}");
+		$urls=preg_split('/\//',$url);
+		$filename=array_pop($urls);
+		$path=MODX_BASE_PATH;
+		foreach($urls as $key => $val){
+			if( empty($val) ){continue;}
+			$path .= $val.'/';
+			if(! is_dir($path) ){
+				if(! mkdir($path) ){
+					$this->logEvent(1,3,'ディレクトリの作成に失敗しました:'.$path,'[plugin]StaticFileMaker');
 				}
 			}
-		}else{
-			//生成
-			$content = @file_get_contents(MODX_SITE_URL . "index.php?id={$id}&__rebuild={$rebuild_password}");
-			$urls=preg_split('/\//',$url);
-			$filename=array_pop($urls);
-			$path=MODX_BASE_PATH;
-			foreach($urls as $key => $val){
-				if( empty($val) ){continue;}
-				$path .= $val.'/';
-				if(! is_dir($path) ){
-					if(! mkdir($path) ){
-						$this->logEvent(1,3,'ディレクトリの作成に失敗しました:'.$path,'[plugin]静的ファイル生成');
-					}
-				}
-			}
-			if( @file_put_contents($path.$filename,$content) === false){
-				$this->logEvent(1,3,'ファイルの作成に失敗しました:'.$path.$filename,'[plugin]静的ファイル生成');
-			}		
 		}
+		if( @file_put_contents($path.$filename,$content) === false){
+			$this->logEvent(1,3,'ファイルの作成に失敗しました:'.$path.$filename,'[plugin]StaticFileMaker');
+		}		
 	}
   break;
 
@@ -135,9 +188,8 @@ case 'OnWebPageInit': //cookieとセッション値が合わない場合、隠�
 			  ) && $_GET['__rebuild_pfile'] != '1'
 			)
 		){
-		//ファイル生成が無効になっている場合は素直に表示させる
-		$except=$this->getTemplateVarOutput(array('RebuildExcept'),$modx->documentIdentifier);
-		if(! preg_match('/対象外/',$except['RebuildExcept']) ){
+		//ファイル生成が無効になっている場合は素直に表示させるためスルー
+		if( $makeJudge($this->documentIdentifier,$defaultMake) ){
 			$this->sendErrorPage();
 		}
 	}
@@ -172,16 +224,12 @@ HTML_END;
 			$rs=$this->db->select('id,published,deleted,privateweb',$tbl_site_content);
 			while($row = $this->db->getRow($rs)){
 				$url=$this->makeUrl($row['id']);
-				$except=$this->getTemplateVarOutput(array('RebuildExcept'),$row['id']);
-				if( preg_match('/対象外/',$except['RebuildExcept']) ){
-					$except = 1;
-				}else{
-					$except = 0;
-				}
+				$makeEnable=$makeJudge($row['id'],$defaultMake);
+
 				if( $row['published']  == 0 ||
 						$row['deleted']    == 1 ||
 						$row['privateweb'] == 1 ||
-						$except            == 1 ){
+						$makeEnable == false ){
 					//削除
 					if( is_file(MODX_BASE_PATH.$url) ){
 						$err='';
