@@ -20,7 +20,9 @@ $logErr=3;  //エラー
 
 //フレンドリーURLが無効の時は何もしない
 if( !($this->config['friendly_urls'] == 1 && $this->config['friendly_alias_urls'] == 1) ){
-	$this->logEvent($eventid,$logWarn,'フレンドリーURLを有効にしてください。','[plugin]StaticFileMaker');
+	if( $this->event->name == 'OnManagerPageInit' ){
+		$this->logEvent($eventid,$logWarn,'StaticFileMakerを利用するにはフレンドリーURLを有効にする必要があります。','[plugin]StaticFileMaker');
+	}
 	return false;
 }
 
