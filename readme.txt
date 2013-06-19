@@ -87,9 +87,9 @@ MODXのリソースを静的ファイルにして運用する事ができます�
 
   [メイン]
     変数名               : StaticFileMakerOption
-    見出し               : StaticFileMakerのオプション
+    見出し               : StaticFileMakerオプション
     入力タイプ           : Check Box
-    入力時のオプション値 : 対象外にする==exceptSelf||このリソース配下をすべて対象外にする==exceptChildren||親リソースで対象外にされても生成する==makeForce
+    入力時のオプション値 : このリソースはファイルを生成しない<br />==exceptSelf||このリソース配下のリソースはすべてファイルを生成しない<br />==exceptChildren||親リソースの設定を無視してファイルを生成する<br />==makeForce
     規定値               : (空白のまま)
     ウィジェット         : (選択無)
 
@@ -200,7 +200,7 @@ StaticFileMakerのオプションの効果もすべて反転します。
 このオプションを使う場合はテンプレート変数の文章に矛盾が出るため次のように変更
 した方が運用上間違わないと思います。
 
-生成する==exceptSelf||このリソース配下を全て生成対象にする==exceptChildren||親リソースで生成対象になっていても生成しない==makeForce
+このリソースはファイルを生成する<br />==exceptSelf||このリソース配下は全てファイルを生成する<br />==exceptChildren||親リソースの設定を無視してファイルを生成しない<br />==makeForce
 
 
 [6.注意事項]
