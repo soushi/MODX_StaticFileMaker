@@ -10,7 +10,7 @@
  * @author      soushi
  * @internal    @events        OnDocFormRender,OnDocFormSave,OnManagerLogin,OnWebPageInit,OnManagerPageInit
  * @internal    @modx_category StaticFileMaker
- * @internal    @properties &rebuild_password=静的ファイル生成用パスワード;text; &defaultAction=既定の動作;list;生成する,生成しない;生成する
+ * @internal    @properties &rebuild_password=静的ファイル生成用パスワード;text; &defaultAction=既定の動作;list;生成する,生成しない;生成する &dirIndexFile=コンテナに付加するファイル名;text;index.html
  */
 
 $eventid=999; //999 = Custom action
@@ -32,6 +32,9 @@ if( $defaultAction == '生成する' ){
 }else{
 	$defaultMake = false;
 }
+
+//コンテナに付けるファイル名を決定
+$dirIndexFile = empty($dirIndexFile)?'index.html':$dirIndexFile;
 
 //生成対象/対象外の判定関数
 $makeJudge=function($id,$defaultMake=true){
@@ -138,6 +141,9 @@ HTML_END;
 case 'OnDocFormSave': //ファイル生成
 	
 	$url=$this->makeUrl($id);
+	if( preg_match('/\/$/',$url) ){
+		$url .= $dirIndexFile;
+	}
 	$makeEnable=$makeJudge($id,$defaultMake);
 
 	$tbl_site_content = $this->getFullTableName('site_content');
@@ -231,6 +237,9 @@ HTML_END;
 			$rs=$this->db->select('id,published,deleted,privateweb',$tbl_site_content);
 			while($row = $this->db->getRow($rs)){
 				$url=$this->makeUrl($row['id']);
+				if( preg_match('/\/$/',$url) ){
+					$url .= $dirIndexFile;
+				}
 				$makeEnable=$makeJudge($row['id'],$defaultMake);
 
 				if( $row['published']  == 0 ||
