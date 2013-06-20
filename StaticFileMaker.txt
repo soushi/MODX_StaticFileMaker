@@ -5,7 +5,7 @@
  * フレンドリーURL機能は有効にする事
  *
  * @category    plugin
- * @version     1.01
+ * @version     1.02
  * @license     http://www.gnu.org/copyleft/gpl.html GNU Public License (GPL)
  * @author      soushi
  * @internal    @events        OnDocFormRender,OnDocFormSave,OnManagerLogin,OnWebPageInit,OnManagerPageInit
