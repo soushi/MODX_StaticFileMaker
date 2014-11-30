@@ -125,7 +125,7 @@ case 'OnDocFormRender': //ボタン追加
 		var newLi = document.createElement("li");
 		newA.appendChild( newText );
 		newA.setAttribute("href", "#");
-		newA.setAttribute("onclick", "if(window.confirm('保存後、静的ファイルを生成を行います(非公開にチェックをいれた場合は削除されます)。')){document.getElementById('rebuild_flag').value='1'; documentDirty=false; document.mutate.save.click();}");
+		newA.setAttribute("onclick", "if(window.confirm('保存後、静的ファイルを生成を行います(非公開にチェックをいれた場合は削除されます)。')){document.getElementById('rebuild_flag').value='1'; documentDirty=false; document.mutate.action='index.php'; document.mutate.target='main'; document.mutate.save.click();}");
 		newLi.appendChild ( newA );
 		new_ul.insertBefore( newLi,new_ul.firstChild );
 	}
