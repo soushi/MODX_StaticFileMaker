@@ -140,7 +140,7 @@ HTML_END;
 
 case 'OnDocFormSave': //ファイル生成
 	
-	$url=$this->makeUrl($id);
+	$url=$this->makeUrl($id,'','','a');
 	if( preg_match('/\/$/',$url) ){
 		$url .= $dirIndexFile;
 	}
