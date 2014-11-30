@@ -236,7 +236,7 @@ HTML_END;
 			$tbl_site_content = $this->getFullTableName('site_content');
 			$rs=$this->db->select('id,published,deleted,privateweb',$tbl_site_content);
 			while($row = $this->db->getRow($rs)){
-				$url=$this->makeUrl($row['id']);
+				$url=$this->makeUrl($row['id'],'','','a');
 				if( preg_match('/\/$/',$url) ){
 					$url .= $dirIndexFile;
 				}
