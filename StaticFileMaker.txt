@@ -10,7 +10,7 @@
  * @author      soushi
  * @internal    @events        OnDocFormRender,OnDocFormSave,OnManagerLogin,OnWebPageInit,OnManagerPageInit
  * @internal    @modx_category StaticFileMaker
- * @internal    @properties &rebuild_password=静的ファイル生成用パスワード;text; &defaultAction=既定の動作;list;生成する,生成しない;生成する &dirIndexFile=コンテナに付加するファイル名;text;index.html
+ * @internal    @properties &rebuild_password=静的ファイル生成用パスワード;text; &defaultAction=既定の動作;list;生成する,生成しない;生成する &dirIndexFile=コンテナに付加するファイル名;text;index.html  &changeFilename=出力ファイル名を変更する;textarea;
  */
 
 $eventid=999; //999 = Custom action
@@ -35,6 +35,13 @@ if( $defaultAction == '生成する' ){
 
 //コンテナに付けるファイル名を決定
 $dirIndexFile = empty($dirIndexFile)?'index.html':$dirIndexFile;
+
+//特定のファイル名変換
+if( !empty($changeFilename) ){
+	$changeFilename = explode("\n",$changeFilename);
+}else{
+	$changeFilename = array();
+}
 
 //生成対象/対象外の判定関数
 $makeJudge=function($id,$defaultMake=true){
@@ -170,6 +177,14 @@ case 'OnDocFormSave': //ファイル生成
 		$content = @file_get_contents(MODX_SITE_URL . "index.php?id={$id}&__rebuild={$rebuild_password}");
 		$urls=preg_split('/\//',$url);
 		$filename=array_pop($urls);
+
+		foreach( $changeFilename as $val ){
+			$val = explode(',',$val);
+			if( $filename == $val[0] ){
+				$filename = $val[1];
+			}
+		}
+
 		$path=MODX_BASE_PATH;
 		foreach($urls as $key => $val){
 			if( empty($val) ){continue;}
@@ -259,6 +274,14 @@ HTML_END;
 					$content = @file_get_contents(MODX_SITE_URL . "index.php?id={$row['id']}&__rebuild={$rebuild_password}");
 					$urls=preg_split('/\//',$url);
 					$filename=array_pop($urls);
+
+					foreach( $changeFilename as $val ){
+						$val = explode(',',$val);
+						if( $filename == $val[0] ){
+							$filename = $val[1];
+						}
+					}
+
 					$path=MODX_BASE_PATH;
 					$err='';
 					foreach($urls as $key => $val){
@@ -306,4 +329,3 @@ HTML_END;
 	}
 	break;
 }
-
