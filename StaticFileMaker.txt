@@ -26,6 +26,9 @@ if( !($this->config['friendly_urls'] == 1 && $this->config['friendly_alias_urls'
 	return false;
 }
 
+//ファイルの生成/削除するときにtrueになる
+$runBuildFile = false;
+
 //デフォルトの生成ルールを決定
 if( $defaultAction == '生成する' ){
 	$defaultMake = true;
@@ -38,7 +41,12 @@ $dirIndexFile = empty($dirIndexFile)?'index.html':$dirIndexFile;
 
 //特定のファイル名変換
 if( !empty($changeFilename) ){
-	$changeFilename = explode("\n",$changeFilename);
+	$tmp = explode("\n",$changeFilename);
+	$changeFilename = array();
+	foreach( $tmp as $val ){
+		$vals = explode(',',$val);
+		$changeFilename[$vals[0]] = $vals[1];
+	}
 }else{
 	$changeFilename = array();
 }
@@ -76,6 +84,33 @@ $makeJudge=function($id,$defaultMake=true){
 		}
 	}
 	return $rslt;
+};
+
+//ファイルの生成
+$makeStaticFile=function($id,$toUrl,$pwd){
+	global $modx; //クロージャの中で$thisが利用できるのは php5.4 以降
+
+	$modxUrl = MODX_SITE_URL . "index.php?id={$id}&__rebuild={$pwd}";
+	$content = @file_get_contents($modxUrl);
+	
+	$urls=preg_split('/\//',$toUrl);
+	$filename=array_pop($urls);
+
+	$path=MODX_BASE_PATH;
+	foreach($urls as $key => $val){
+		if( empty($val) ){continue;}
+		$path .= $val.'/';
+		if(! is_dir($path) ){
+			if(! mkdir($path) ){
+				return 'ディレクトリの作成に失敗しました:';
+			}
+		}
+	}
+	if( @file_put_contents($path.$filename,$content) === false){
+		return 'ファイルの作成に失敗しました:'.$path.$filename;
+	}
+	return '';
+
 };
 
 switch ($this->event->name) {
@@ -147,58 +182,11 @@ HTML_END;
 
 case 'OnDocFormSave': //ファイル生成
 	
-	$url=$this->makeUrl($id,'','','a');
-	if( preg_match('/\/$/',$url) ){
-		$url .= $dirIndexFile;
-	}
-	$makeEnable=$makeJudge($id,$defaultMake);
+	$runBuildFile = true;
+	$targetId     = $id;
+	$makeChainRs  = true;
+	$stdOutput    = false;
 
-	$tbl_site_content = $this->getFullTableName('site_content');
-	$rs=$this->db->select('id,published,deleted,privateweb',$tbl_site_content,"id={$id}");
-	$row = $this->db->getRow($rs);
-	if( $row === false ){
-		$this->logEvent($eventid,$logErr,'リソースが見つかりません:'.$id,'[plugin]StaticFileMaker');
-	}
-
-	//削除はrebuild_flagに関係なく実施する
-	if( $row['published']  == 0 ||
-			$row['deleted']    == 1 || //削除の判定は不要だけど一応
-			$row['privateweb'] == 1 ||
-			$makeEnable == false
-			){
-		//削除
-		if( is_file(MODX_BASE_PATH.$url) ){
-			if(! unlink(MODX_BASE_PATH.$url) ){
-				$this->logEvent($eventid,$logErr,'ファイルの削除に失敗しました:'.$url,'[plugin]StaticFileMaker');
-			}
-		}
-	}elseif( $_REQUEST['rebuild_flag'] == '1' && $makeEnable ){
-		//生成
-		$content = @file_get_contents(MODX_SITE_URL . "index.php?id={$id}&__rebuild={$rebuild_password}");
-		$urls=preg_split('/\//',$url);
-		$filename=array_pop($urls);
-
-		foreach( $changeFilename as $val ){
-			$val = explode(',',$val);
-			if( $filename == $val[0] ){
-				$filename = $val[1];
-			}
-		}
-
-		$path=MODX_BASE_PATH;
-		foreach($urls as $key => $val){
-			if( empty($val) ){continue;}
-			$path .= $val.'/';
-			if(! is_dir($path) ){
-				if(! mkdir($path) ){
-					$this->logEvent($eventid,$logErr,'ディレクトリの作成に失敗しました:'.$path,'[plugin]StaticFileMaker');
-				}
-			}
-		}
-		if( @file_put_contents($path.$filename,$content) === false){
-			$this->logEvent($eventid,$logErr,'ファイルの作成に失敗しました:'.$path.$filename,'[plugin]StaticFileMaker');
-		}		
-	}
   break;
 
 case 'OnManagerLogin': //プレビューが確認できるようにcookieの生成
@@ -246,78 +234,11 @@ HTML_END;
 		$mode=isset($_GET['mode'])?$_GET['mode']:'';
 		switch ($mode) {
 		case 'rebuild':
-			$listMk='';
-			$listRm='';
-			$tbl_site_content = $this->getFullTableName('site_content');
-			$rs=$this->db->select('id,published,deleted,privateweb',$tbl_site_content);
-			while($row = $this->db->getRow($rs)){
-				$url=$this->makeUrl($row['id'],'','','a');
-				if( preg_match('/\/$/',$url) ){
-					$url .= $dirIndexFile;
-				}
-				$makeEnable=$makeJudge($row['id'],$defaultMake);
-
-				if( $row['published']  == 0 ||
-						$row['deleted']    == 1 ||
-						$row['privateweb'] == 1 ||
-						$makeEnable == false ){
-					//削除
-					if( is_file(MODX_BASE_PATH.$url) ){
-						$err='';
-						if(! unlink(MODX_BASE_PATH.$url) ){
-							$err='※削除失敗';
-						}
-						$listRm.=$url.$err.'<br >';
-					}
-				}else{
-					//生成(ここの処理は単独の生成ロジックと似てるのでそのうち無名関数くらいにした方がいいかも)
-					$content = @file_get_contents(MODX_SITE_URL . "index.php?id={$row['id']}&__rebuild={$rebuild_password}");
-					$urls=preg_split('/\//',$url);
-					$filename=array_pop($urls);
-
-					foreach( $changeFilename as $val ){
-						$val = explode(',',$val);
-						if( $filename == $val[0] ){
-							$filename = $val[1];
-						}
-					}
-
-					$path=MODX_BASE_PATH;
-					$err='';
-					foreach($urls as $key => $val){
-						if( empty($val) ){continue;}
-						$path .= $val.'/';
-						if(! is_dir($path) ){
-							if(! mkdir($path) ){
-								$err='※ディレクトリ生成失敗';
-							}
-						}
-					}
-					if( @file_put_contents($path.$filename,$content) === false){
-						$err='※ファイル生成失敗';
-					}
-					$listMk.=$url.$err.'<br >';
-				}
-			}
-			if( $listMk == '' ){
-				$listMk = '生成ファイルなし';
-			}
-			if( $listRm == '' ){
-				$listRm = '削除ファイルなし';
-			}
-
-			$output = <<< HTML_END
-{$outputForm}
-<div style="text-align:left;margin-top:20px;margin-left:50px;">
-	<h2>ファイル生成完了しました！</h2>
-	<h3>生成ファイル</h3>
-	{$listMk}
-	<h3>削除ファイル</h3>
-	{$listRm}
-</div>
-HTML_END;
-
-			$this->event->output($output);
+			$runBuildFile = true;
+			$targetId     = '';
+			$makeChainRs  = false;
+			$stdOutput    = true;
+			//$this->event->output($output); //出力は最後に
 
 			break;
 
@@ -328,4 +249,131 @@ HTML_END;
 		
 	}
 	break;
+}
+
+// ファイル生成/削除処理
+if( $runBuildFile ){
+	$listMk=''; //作成したファイル一覧
+	$listRm=''; //削除したファイル一覧
+
+	$tbl_site_content = $this->getFullTableName('site_content');
+
+	$where = '';
+	if( !empty($targetId) ){
+		$where = "id = {$targetId}";	
+	}
+	$rsRs=$this->db->select('id,published,deleted,privateweb',$tbl_site_content,$where);
+
+	while($rsDetail = $this->db->getRow($rsRs)){
+		$url=$this->makeUrl($rsDetail['id'],'','','a');
+		if( preg_match('/\/$/',$url) ){
+			$url .= $dirIndexFile;
+		}
+		$tmpFilename = basename($url);
+		if( array_key_exists($tmpFilename,$changeFilename) ){
+			$url = dirname($url) .  '/' . $changeFilename[$tmpFilename];
+			$url = str_replace('//','/',$url);
+		}
+
+		$makeEnable=$makeJudge($rsDetail['id'],$defaultMake);
+		if( $rsDetail['published']  == 0 ||
+				$rsDetail['deleted']    == 1 ||
+				$rsDetail['privateweb'] == 1 ||
+				$makeEnable == false ){
+			//削除
+			if( is_file(MODX_BASE_PATH.$url) ){
+				$listRm .= $url;
+				if( !unlink(MODX_BASE_PATH.$url) ){
+					$listRm .= '※削除失敗<br />';
+				}else{
+					$listRm .= '<br />';
+				}
+			}
+		}else{
+			$listMk .= $url;
+			$tmperr = $makeStaticFile($rsDetail['id'],$url,$rebuild_password);
+			if( !empty($tmperr) ){
+				$listMk .= $tmperr;
+			}
+			$listMk .= '<br />';
+		}
+
+		//連動するリソースの処理(StaticFileMakerChainResource)
+		if( $makeChainRs ){
+			$tv_chnRs=$modx->getTemplateVarOutput(array('StaticFileMakerChainResource'),$rsDetail['id']);
+			$tv_chnRs=$tv_chnRs['StaticFileMakerChainResource'];
+
+			if( !empty($tv_chnRs) ){
+				if( preg_match('/^[0-9][0-9,]+[0-9]$/',$tv_chnRs) ){
+					$chnRs=$this->db->query("SELECT id,published,deleted,privateweb FROM $tbl_site_content WHERE id IN ($tv_chnRs);");
+					while( $chnRsDetail = $this->db->getRow($chnRs) ){
+
+						$chnUrl=$this->makeUrl($chnRsDetail['id'],'','','a');
+						if( preg_match('/\/$/',$chnUrl) ){
+							$chnUrl .= $dirIndexFile;
+						}
+						$tmpFilename = basename($chnUrl);
+						if( isset($changeFilename[$tmpFilename]) ){
+							$chnUrl = dirname($chnUrl) .  '/' . $changeFilename[$tmpFilename];
+							$chnUrl = str_replace('//','/',$chnUrl);
+						}
+
+						$makeEnable=$makeJudge($chnRsDetail['id'],$defaultMake);
+						if( $chnRsDetail['published']  == 0 ||
+								$chnRsDetail['deleted']    == 1 ||
+								$chnRsDetail['privateweb'] == 1 ||
+								$makeEnable == false ){
+							//削除
+							if( is_file(MODX_BASE_PATH.$chnUrl) ){
+								$listRm .= $chnUrl;
+								if( !unlink(MODX_BASE_PATH.$chnUrl) ){
+									$listRm .= '※削除失敗<br />';
+								}else{
+									$listRm .= '<br />';
+								}
+							}
+						}else{
+							$listMk .= $chnUrl;
+							$tmperr = $makeStaticFile($chnRsDetail['id'],$chnUrl,$rebuild_password);
+							if( !empty($tmperr) ){
+								$listMk .= $tmperr;
+							}
+							$listMk .= '<br />';
+						}
+					}
+				}else{
+					$this->logEvent($eventid,$logErr,"StaticFileMakerChainResourceの入力値が不正です:{$rsDetail['id']}/{$tv_chnRs}",'[plugin]StaticFileMaker');	
+				}
+			}
+		}
+	}
+
+	if( $listMk == '' ){
+		$listMk = '生成ファイルなし';
+	}
+	if( $listRm == '' ){
+		$listRm = '削除ファイルなし';
+	}
+
+$output= <<< HTML_END
+<h3>生成ファイル</h3>
+  {$listMk}
+<h3>削除ファイル</h3>
+  {$listRm}
+HTML_END;
+
+	if( $stdOutput ){
+		$output = <<< HTML_END
+{$outputForm}
+<div style="text-align:left;margin-top:20px;margin-left:50px;">
+	<h2>ファイル生成完了しました！</h2>
+  {$output}
+</div>
+HTML_END;
+
+		$this->event->output($output);
+	}else{
+		$this->logEvent($eventid,$logInfo,$output,'[plugin]StaticFileMaker');
+	}
+
 }
