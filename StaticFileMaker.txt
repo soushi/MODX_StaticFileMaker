@@ -28,6 +28,8 @@ if( !($this->config['friendly_urls'] == 1 && $this->config['friendly_alias_urls'
 
 //ファイルの生成/削除するときにtrueになる
 $runBuildFile = false;
+//リソース保存時のPOSTにrebuild_flagが確認できないと削除のみ処理に変わる
+$deleteOnly = false;
 
 //デフォルトの生成ルールを決定
 if( $defaultAction == '生成する' ){
@@ -186,6 +188,9 @@ case 'OnDocFormSave': //ファイル生成
 	$targetId     = $id;
 	$makeChainRs  = true;
 	$stdOutput    = false;
+	if( $_REQUEST['rebuild_flag'] != '1' ){
+		 $deleteOnly = true;
+	}
 
   break;
 
@@ -289,7 +294,7 @@ if( $runBuildFile ){
 					$listRm .= '<br />';
 				}
 			}
-		}else{
+		}elseif( !$deleteOnly ){
 			$listMk .= $url;
 			$tmperr = $makeStaticFile($rsDetail['id'],$url,$rebuild_password);
 			if( !empty($tmperr) ){
@@ -332,7 +337,7 @@ if( $runBuildFile ){
 									$listRm .= '<br />';
 								}
 							}
-						}else{
+						}elseif( !$deleteOnly ){
 							$listMk .= $chnUrl;
 							$tmperr = $makeStaticFile($chnRsDetail['id'],$chnUrl,$rebuild_password);
 							if( !empty($tmperr) ){
