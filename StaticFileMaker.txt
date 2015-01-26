@@ -308,6 +308,12 @@ if( $runBuildFile ){
 			$tv_chnRs=$modx->getTemplateVarOutput(array('StaticFileMakerChainResource'),$rsDetail['id']);
 			$tv_chnRs=$tv_chnRs['StaticFileMakerChainResource'];
 
+			//$this->config['StaticFileMakerChainResources'] に値があれば追加する
+			if( isset($this->config['StaticFileMakerChainResources']) && !empty($this->config['StaticFileMakerChainResources']) ){
+				$tv_chnRs = empty($tv_chnRs)?'':$tv_chnRs.',';
+				$tv_chnRs = $tv_chnRs . $this->config['StaticFileMakerChainResources'];
+			}
+
 			if( !empty($tv_chnRs) ){
 				if( preg_match('/^[0-9][0-9,]+[0-9]$/',$tv_chnRs) ){
 					$chnRs=$this->db->query("SELECT id,published,deleted,privateweb FROM $tbl_site_content WHERE id IN ($tv_chnRs);");
